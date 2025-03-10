@@ -6,5 +6,5 @@ use Illuminate\Database\Eloquent\Model;
 
 class Result extends Model
 {
-    protected $fillable = ['type', 'starting_at', 'duration', 'track'];
+    protected $fillable = ['type', 'starting_at', 'duration', 'track', 'nb_drivers'];
 }

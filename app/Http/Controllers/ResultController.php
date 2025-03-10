@@ -6,11 +6,16 @@ use App\Models\Result;
 
 class ResultController extends Controller
 {
-    private $PATH_TO_RESULTS_ROOT = 'C:/Program Files (x86)/Steam/steamapps/common/Le Mans Ultimate/UserData/Log/Results/';
+    private $PATH_TO_RESULTS_ROOT;
 
-    public function createResult($type, $startingAt, $duration, $track)
+    public function __construct()
     {
-        if ($this->getResult($type, $startingAt, $duration, $track)) {
+        $this->PATH_TO_RESULTS_ROOT = session('results_path', config('app.results_path'));
+    }
+
+    public function createResult($type, $startingAt, $duration, $track, $nb_drivers)
+    {
+        if ($this->getResult($type, $startingAt, $duration, $track, $nb_drivers)) {
             return null;
         } else {
             $result = new Result();
@@ -18,17 +23,19 @@ class ResultController extends Controller
             $result->starting_at = $startingAt;
             $result->duration = $duration;
             $result->track = $track;
+            $result->nb_drivers = $nb_drivers;
             $result->save();
             return $result;
         }
     }
 
-    public function getResult($type, $startingAt, $duration, $track)
+    public function getResult($type, $startingAt, $duration, $track, $nb_drivers)
     {
         $result = Result::where('type', $type)
             ->where('starting_at', $startingAt)
             ->where('duration', $duration)
             ->where('track', $track)
+            ->where('nb_drivers', $nb_drivers)
             ->first();
         if ($result) {
             return $result;
@@ -70,24 +77,55 @@ class ResultController extends Controller
 
     public function getAllResults()
     {
-        return Result::all();
+        return Result::query()->orderBy('starting_at', 'desc')->get();
+    }
+
+    public function getAllResultsPaginate()
+    {
+        return Result::query()->orderBy('starting_at', 'desc')->paginate(10);
     }
 
     public function loadAllResult()
     {
+        // Vérifie si le chemin des résultats est vide ou invalide
+        if (empty($this->PATH_TO_RESULTS_ROOT) || !is_dir($this->PATH_TO_RESULTS_ROOT)) {
+            return view('results')->with('error', 'Le chemin des résultats est invalide ou vide.');
+        }
+
         $files = scandir($this->PATH_TO_RESULTS_ROOT);
         $xmlFiles = array_filter($files, function ($file) {
             return pathinfo($file, PATHINFO_EXTENSION) === 'xml';
         });
+
         if (!empty($xmlFiles)) {
             foreach ($xmlFiles as $xmlFile) {
-                $this->init("{$this->PATH_TO_RESULTS_ROOT}{$xmlFile}");
+                $this->init("{$this->PATH_TO_RESULTS_ROOT}/{$xmlFile}");
             }
 
-            $results = $this->getAllResults();
+            $results = $this->getAllResultsPaginate();
 
             return view('results', ["results" => $results]);
+        } else {
+            return view('results')->with('error', 'Aucun fichier XML trouvé dans le dossier des résultats.');
         }
+    }
+
+
+    public function getHowManyDriversFromXml($xml)
+    {
+        $cpt = 0;
+
+        $session_type = $this->getSessionType($xml);
+
+        if ($session_type === "Qualify") {
+            $cpt = count($xml->RaceResults->Qualify->Driver);
+        } elseif ($session_type === "Practice") {
+            $cpt = count($xml->RaceResults->Practice1->Driver);
+        } elseif ($session_type === "Race") {
+            $cpt = count($xml->RaceResults->Race->Driver);
+        }
+
+        return $cpt;
     }
 
     public function init($file)
@@ -106,47 +144,50 @@ class ResultController extends Controller
             return null;
         }
 
-        $session_type = 'Unknown';
+        $session_type = $this->getSessionType($xml);
+        $timeString = $this->getTimeString($xml);
+        $minutes = $this->getMinutes($xml);
+        $trackCourse = $xml->RaceResults->TrackCourse;
+        $nb_drivers = $this->getHowManyDriversFromXml($xml);
 
+        if (!$this->getResult($session_type, $timeString, $minutes, $trackCourse, $nb_drivers)) {
+            $this->createResult($session_type, $timeString, $minutes, $trackCourse, $nb_drivers);
+        }
+    }
+
+    private function getSessionType($xml)
+    {
         if (isset($xml->RaceResults->Qualify)) {
-            $session_type = 'Qualify';
+            return 'Qualify';
         } elseif (isset($xml->RaceResults->Practice1)) {
-            $session_type = 'Practice';
+            return 'Practice';
         } elseif (isset($xml->RaceResults->Race)) {
-            $session_type = 'Race';
+            return 'Race';
         }
+        return 'Unknown';
+    }
 
-        if (
-            $this->getResult(
-                $session_type,
-                isset($xml->RaceResults->Qualify)
-                ? $xml->RaceResults->Qualify->TimeString
-                : (isset($xml->RaceResults->Practice1)
-                    ? $xml->RaceResults->Practice1->TimeString
-                    : $xml->RaceResults->Race->TimeString),
-                isset($xml->RaceResults->Qualify)
-                ? $xml->RaceResults->Qualify->Minutes
-                : (isset($xml->RaceResults->Practice1)
-                    ? $xml->RaceResults->Practice1->Minutes
-                    : $xml->RaceResults->Race->Minutes),
-                $xml->RaceResults->TrackCourse
-            )
-        ) {
-        } else {
-            $this->createResult(
-                $session_type,
-                isset($xml->RaceResults->Qualify)
-                ? $xml->RaceResults->Qualify->TimeString
-                : (isset($xml->RaceResults->Practice1)
-                    ? $xml->RaceResults->Practice1->TimeString
-                    : $xml->RaceResults->Race->TimeString),
-                isset($xml->RaceResults->Qualify)
-                ? $xml->RaceResults->Qualify->Minutes
-                : (isset($xml->RaceResults->Practice1)
-                    ? $xml->RaceResults->Practice1->Minutes
-                    : $xml->RaceResults->Race->Minutes),
-                $xml->RaceResults->TrackCourse
-            );
+    private function getTimeString($xml)
+    {
+        if (isset($xml->RaceResults->Qualify)) {
+            return $xml->RaceResults->Qualify->TimeString;
+        } elseif (isset($xml->RaceResults->Practice1)) {
+            return $xml->RaceResults->Practice1->TimeString;
+        } elseif (isset($xml->RaceResults->Race)) {
+            return $xml->RaceResults->Race->TimeString;
         }
+        return null;
+    }
+
+    private function getMinutes($xml)
+    {
+        if (isset($xml->RaceResults->Qualify)) {
+            return $xml->RaceResults->Qualify->Minutes;
+        } elseif (isset($xml->RaceResults->Practice1)) {
+            return $xml->RaceResults->Practice1->Minutes;
+        } elseif (isset($xml->RaceResults->Race)) {
+            return $xml->RaceResults->Race->Minutes;
+        }
+        return null;
     }
 }
