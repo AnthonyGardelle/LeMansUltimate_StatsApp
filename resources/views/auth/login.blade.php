@@ -1,10 +1,10 @@
 @extends('layouts.app')
 
-@section('title', 'Le Mans Ultimate Stats App - Login')
+@section('title', __('message.title.login'))
 
 @section('content')
     <div class="content" id="content">
-        <h1>Se connecter</h1>
+        <h1>@lang('message.h1.login')</h1>
 
         <div class="form-container login-form with-deco">
             <form action="{{ url('login') }}" method="POST">
@@ -13,16 +13,6 @@
                     value="{{ old('email') }}">
                 <input type="password" name="password" placeholder="Mot de passe" required>
                 <button type="submit">Se connecter</button>
-
-                @if($errors->any())
-                    <div>
-                        <ul>
-                            @foreach($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                @endif
             </form>
         </div>
     </div>

@@ -1,18 +1,23 @@
 <nav>
     <ul>
-        <li><a class="nav-button" href="{{ url('/') }}">Accueil</a></li>
-        <li><a class="nav-button" href="{{ url('results') }}">Les Résultats</a></li>
+        <li><a href="{{ url('/') }}" class="{{ request()->is('/') ? 'active' : '' }}">@lang('message.accueil')</a></li>
+        <li><a href="{{ url('results') }}" class="{{ request()->is('results') ? 'active' : '' }}">@lang('message.result')</a></li>
         @guest
-            <li><a class="nav-button" href="{{ route('show.register') }}">S'inscrire</a></li>
-            <li><a class="nav-button" href="{{ route('show.login') }}">Se Connecter</a></li>
+            <li><a href="{{ route('show.register') }}"
+                    class="{{ request()->is('register') ? 'active' : '' }}">@lang('message.register')</a></li>
+            <li><a href="{{ route('show.login') }}" class="{{ request()->is('login') ? 'active' : '' }}">@lang('message.login')</a>
+            </li>
         @else
             <li>
-                <form id="logout-form" action="{{ route('logout') }}" method="POST"
-                    onsubmit="return showLogoutPopup(event)">
+                <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
                     @csrf
-
-                    <button class="nav-button" type="submit">Se Déconnecter</button>
                 </form>
+                <a href="#" onclick="return showLogoutPopup(event);">@lang('message.logout')</a>
+            </li>
+            <li><a id="profil-link" href="{{ route('show.profile') }}"
+                    class="{{ request()->is('profile') ? 'active' : '' }}">{{ Auth::user()->first_name }}
+                    {{ Auth::user()->name }}<img src="{{ asset('storage/' . Auth::user()->image)}}" alt="">
+                </a>
             </li>
         @endguest
     </ul>

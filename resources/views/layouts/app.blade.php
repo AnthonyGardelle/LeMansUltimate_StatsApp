@@ -5,23 +5,72 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title')</title>
-    <link rel="stylesheet" href="{{ asset('css/styles.css') }}">
-    <script src="{{ asset('js/script.js') }}"></script>
+    @vite(['resources/scss/app.scss', 'resources/js/app.js'])
+    <script src="https://unpkg.com/dropzone@6.0.0-beta.1/dist/dropzone-min.js"></script>
+    <link href="https://unpkg.com/dropzone@6.0.0-beta.1/dist/dropzone.css" rel="stylesheet" type="text/css"/>
 </head>
 
 <body>
     <header>
         @include('partials.navbar')
+        @if($errors->any())
+            <div id="error-popup">
+                <div id="popup-header">
+                    <h3>Erreur(s) détectée(s) 🛑</h3>
+                    <span id="close-popup" onclick="closeErrorPopup()">&times;</span>
+                </div>
+                <ul>
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+        @if(session('success'))
+            <div id="success-popup">
+                <div id="popup-header">
+                    <h3>Succès ! 🎉</h3>
+                    <span id="close-popup" onclick="closeSuccessPopup()">&times;</span>
+                </div>
+                <p>{{ session('success') }}</p>
+            </div>
+        @endif
     </header>
 
     <main>
         @yield('content')
         <div id="logout-popup" class="popup" onclick="closePopupOnClickOutside(event)">
-            <div class="popup-content">
+            <div class="popup-content with-deco">
                 <p>Êtes-vous sûr de vouloir vous déconnecter ?</p>
-                <button onclick="confirmLogout()">Oui</button>
-                <button onclick="closePopup()">Non</button>
+                <div class="pop-up-buttons">
+                    <button onclick="confirmLogout()">Oui</button>
+                    <button onclick="closePopup()">Non</button>
+                </div>
             </div>
+        </div>
+        <div id="language-selector" onclick="toggleLanguageMenu()">
+            <div class="selected-language">
+                @if (App::getLocale() == 'fr')
+                    <img src="{{ Vite::asset('resources/images/fr.png') }}" alt="French Flag">
+                @else
+                    <img src="{{ Vite::asset('resources/images/en.png') }}" alt="English Flag">
+                @endif
+                <span class="arrow">&#9662;</span>
+            </div>
+            <ul class="language-menu">
+                <li>
+                    <a href="locale/en">
+                        <img src="{{ Vite::asset('resources/images/en.png') }}" alt="English Flag">
+                        @lang('message.en')
+                    </a>
+                </li>
+                <li>
+                    <a href="locale/fr">
+                        <img src="{{ Vite::asset('resources/images/fr.png') }}" alt="French Flag">
+                        @lang('message.fr')
+                    </a>
+                </li>
+            </ul>
         </div>
     </main>
 </body>

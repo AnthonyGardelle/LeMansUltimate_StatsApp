@@ -17,6 +17,7 @@ return new class extends Migration {
             $table->integer('duration');
             $table->string('track');
             $table->integer('nb_drivers');
+            $table->foreignId(column: 'user_id')->constrained()->onDelete('cascade');
             $table->timestamps();
         });
     }

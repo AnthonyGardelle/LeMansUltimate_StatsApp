@@ -3,19 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Result;
+use Illuminate\Support\Facades\Auth;
 
 class ResultController extends Controller
 {
-    private $PATH_TO_RESULTS_ROOT;
 
-    public function __construct()
+    public function createResult($type, $startingAt, $duration, $track, $nb_drivers, $user_id)
     {
-        $this->PATH_TO_RESULTS_ROOT = session('results_path', config('app.results_path'));
-    }
-
-    public function createResult($type, $startingAt, $duration, $track, $nb_drivers)
-    {
-        if ($this->getResult($type, $startingAt, $duration, $track, $nb_drivers)) {
+        if ($this->getResult($type, $startingAt, $duration, $track, $nb_drivers, $user_id)) {
             return null;
         } else {
             $result = new Result();
@@ -24,60 +19,25 @@ class ResultController extends Controller
             $result->duration = $duration;
             $result->track = $track;
             $result->nb_drivers = $nb_drivers;
+            $result->user_id = $user_id;
             $result->save();
             return $result;
         }
     }
 
-    public function getResult($type, $startingAt, $duration, $track, $nb_drivers)
+    public function getResult($type, $startingAt, $duration, $track, $nb_drivers, $user_id)
     {
         $result = Result::where('type', $type)
             ->where('starting_at', $startingAt)
             ->where('duration', $duration)
             ->where('track', $track)
             ->where('nb_drivers', $nb_drivers)
+            ->where('user_id', $user_id)
             ->first();
         if ($result) {
             return $result;
         }
         return null;
-    }
-
-    public function updateResult($type, $newType, $startingAt, $newStartingAt, $duration, $newDuration, $track, $newTrack)
-    {
-        $result = Result::where('type', $type)
-            ->where('starting_at', $startingAt)
-            ->where('duration', $duration)
-            ->where('track', $track)
-            ->first();
-        if ($result) {
-            $result->type = $newType;
-            $result->starting_at = $newStartingAt;
-            $result->duration = $newDuration;
-            $result->track = $newTrack;
-            $result->save();
-            return $result;
-        }
-        return null;
-    }
-
-    public function deleteResult($type, $startingAt, $duration, $track)
-    {
-        $result = Result::where('type', $type)
-            ->where('starting_at', $startingAt)
-            ->where('duration', $duration)
-            ->where('track', $track)
-            ->first();
-        if ($result) {
-            $result->delete();
-            return true;
-        }
-        return false;
-    }
-
-    public function getAllResults()
-    {
-        return Result::query()->orderBy('starting_at', 'desc')->get();
     }
 
     public function getAllResultsPaginate()
@@ -85,31 +45,45 @@ class ResultController extends Controller
         return Result::query()->orderBy('starting_at', 'desc')->paginate(10);
     }
 
-    public function loadAllResult()
+    public function getAllResultsPaginateByUser($user)
     {
-        // Vérifie si le chemin des résultats est vide ou invalide
-        if (empty($this->PATH_TO_RESULTS_ROOT) || !is_dir($this->PATH_TO_RESULTS_ROOT)) {
-            return view('results')->with('error', 'Le chemin des résultats est invalide ou vide.');
+        return Result::query()->where('user_id', $user->id)->orderBy('starting_at', 'desc')->paginate(10);
+    }
+
+    public function loadAllResult($resultsPath, $user)
+    {
+        if (empty($user)) {
+            return back()->withErrors(['error' => __('message.error')]);
         }
 
-        $files = scandir($this->PATH_TO_RESULTS_ROOT);
-        $xmlFiles = array_filter($files, function ($file) {
-            return pathinfo($file, PATHINFO_EXTENSION) === 'xml';
-        });
+        if (empty($resultsPath) || !is_dir($resultsPath)) {
+            return back()->withErrors(['error' => __('message.error')]);
+        }
+
+        $files = scandir($resultsPath);
+        $xmlFiles = array_filter($files, fn($file) => pathinfo($file, PATHINFO_EXTENSION) === 'xml');
 
         if (!empty($xmlFiles)) {
             foreach ($xmlFiles as $xmlFile) {
-                $this->init("{$this->PATH_TO_RESULTS_ROOT}/{$xmlFile}");
+                $this->init("{$resultsPath}/{$xmlFile}", $user);
             }
-
-            $results = $this->getAllResultsPaginate();
-
-            return view('results', ["results" => $results]);
+            return 1;
         } else {
-            return view('results')->with('error', 'Aucun fichier XML trouvé dans le dossier des résultats.');
+            return back()->withErrors(['error' => __('message.error')]);
         }
+
     }
 
+    public function showResults()
+    {
+        if (!Auth::check()) {
+            return redirect()->route('login');
+        }
+        $user = Auth::user();
+
+        $results = $this->getAllResultsPaginateByUser($user);
+        return view('results', ["results" => $results]);
+    }
 
     public function getHowManyDriversFromXml($xml)
     {
@@ -128,7 +102,7 @@ class ResultController extends Controller
         return $cpt;
     }
 
-    public function init($file)
+    public function init($file, $user)
     {
         libxml_use_internal_errors(true);
 
@@ -150,8 +124,8 @@ class ResultController extends Controller
         $trackCourse = $xml->RaceResults->TrackCourse;
         $nb_drivers = $this->getHowManyDriversFromXml($xml);
 
-        if (!$this->getResult($session_type, $timeString, $minutes, $trackCourse, $nb_drivers)) {
-            $this->createResult($session_type, $timeString, $minutes, $trackCourse, $nb_drivers);
+        if (!$this->getResult($session_type, $timeString, $minutes, $trackCourse, $nb_drivers, $user->id)) {
+            $this->createResult($session_type, $timeString, $minutes, $trackCourse, $nb_drivers, $user->id);
         }
     }
 

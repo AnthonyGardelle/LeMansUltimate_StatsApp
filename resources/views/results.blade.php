@@ -1,17 +1,12 @@
 @extends('layouts.app')
 
-@section('title', 'Le Mans Ultimate Stats App - Results')
+@section('title', __('message.title.result'))
 
 @section('content')
     <div class="content" id="content">
-        <h1>Les Resultats</h1>
-        <!-- Affichage du message d'erreur -->
-        @if(session('error'))
-            <div style="color: red; font-weight: bold;">
-                {{ session('error') }}
-            </div>
-        @elseif(isset($results) && $results->isNotEmpty())
-            <table class="with-deco">
+        <h1>@lang('message.h1.result')</h1>
+        @if(isset($results) && $results->isNotEmpty())
+            <table id="results-table" class="with-deco">
                 <thead>
                     <tr>
                         <th>
@@ -44,19 +39,60 @@
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="2">
-                            @if (!$results->onFirstPage())
-                                <a href="{{ $results->previousPageUrl() }}#content"><img class="reverseY"
-                                        src="{{ asset('images/icons8-right-arrow-96.png') }}" alt=""></a>
+                        <td>
+                            @if ($results->currentPage() > 10)
+                                <a href="{{ $results->url($results->currentPage() - 10) }}#content" class="page-link">
+                                    <img class="reverseY" src="{{ Vite::asset('resources/images/icons8-double-right-96.png') }}"
+                                        alt="">
+                                </a>
                             @endif
                         </td>
                         <td>
-                            Page {{ $results->currentPage() }} sur {{ $results->lastPage() }}
+                            @if (!$results->onFirstPage())
+                                <a href="{{ $results->previousPageUrl() }}#content"><img class="reverseY"
+                                        src="{{ Vite::asset('resources/images/icons8-right-arrow-96.png') }}" alt=""></a>
+                            @endif
                         </td>
-                        <td colspan="2">
+                        <td>
+                            <div class="pagination-links">
+                                <p>Page {{ $results->currentPage() }} sur {{ $results->lastPage() }}</p>
+                                @php
+                                    $start = max(1, $results->currentPage() - 2);
+                                    $end = min($results->lastPage(), $results->currentPage() + 2);
+                                @endphp
+                                @if ($start > 1)
+                                    <a href="{{ $results->url(1) }}#content" class="page-link">1</a>
+                                    @if ($start > 2)
+                                        <span class="dots">...</span>
+                                    @endif
+                                @endif
+                                @for ($page = $start; $page <= $end; $page++)
+                                    @if ($page == $results->currentPage())
+                                        <span class="current-page">{{ $page }}</span>
+                                    @else
+                                        <a href="{{ $results->url($page) }}#content" class="page-link">{{ $page }}</a>
+                                    @endif
+                                @endfor
+                                @if ($end < $results->lastPage())
+                                    @if ($end < $results->lastPage() - 1)
+                                        <span class="dots">...</span>
+                                    @endif
+                                    <a href="{{ $results->url($results->lastPage()) }}#content"
+                                        class="page-link">{{ $results->lastPage() }}</a>
+                                @endif
+                            </div>
+                        </td>
+                        <td>
                             @if (!$results->onLastPage())
                                 <a href="{{ $results->nextPageUrl() }}#content"><img
-                                        src="{{ asset('images/icons8-right-arrow-96.png') }}" alt=""></a>
+                                        src="{{ Vite::asset('resources/images/icons8-right-arrow-96.png') }}" alt=""></a>
+                            @endif
+                        </td>
+                        <td>
+                            @if ($results->currentPage() + 10 <= $results->lastPage())
+                                <a href="{{ $results->url($results->currentPage() + 10) }}#content" class="page-link">
+                                    <img src="{{ Vite::asset('resources/images/icons8-double-right-96.png') }}" alt="">
+                                </a>
                             @endif
                         </td>
                     </tr>
