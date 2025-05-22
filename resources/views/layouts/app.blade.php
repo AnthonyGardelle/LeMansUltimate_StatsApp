@@ -51,22 +51,22 @@
         <div id="language-selector" onclick="toggleLanguageMenu()">
             <div class="selected-language">
                 @if (App::getLocale() == 'fr')
-                    <img src="{{ Vite::asset('resources/images/fr.png') }}" alt="French Flag">
+                    <img src="{{ asset('images/fr.png') }}" alt="French Flag">
                 @else
-                    <img src="{{ Vite::asset('resources/images/en.png') }}" alt="English Flag">
+                    <img src="{{ asset('images/en.png') }}" alt="English Flag">
                 @endif
                 <span class="arrow">&#9662;</span>
             </div>
             <ul class="language-menu">
                 <li>
                     <a href="locale/en">
-                        <img src="{{ Vite::asset('resources/images/en.png') }}" alt="English Flag">
+                        <img src="{{ asset('images/en.png') }}" alt="English Flag">
                         @lang('message.en')
                     </a>
                 </li>
                 <li>
                     <a href="locale/fr">
-                        <img src="{{ Vite::asset('resources/images/fr.png') }}" alt="French Flag">
+                        <img src="{{ asset('images/fr.png') }}" alt="French Flag">
                         @lang('message.fr')
                     </a>
                 </li>
