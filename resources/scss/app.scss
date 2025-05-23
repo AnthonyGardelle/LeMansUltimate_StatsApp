@@ -231,7 +231,7 @@ body {
     header {
         display: flex;
         justify-content: center;
-        background-image: url('images/LMU_landscape.png');
+        background-image: url('/images/LMU_landscape.png');
         padding-bottom: 75vh;
         background-repeat: round;
 
@@ -391,7 +391,7 @@ body {
             }
 
             #results-table {
-                background: url('images/background_SPA.jpg') no-repeat center/cover;
+                background: url('/images/background_SPA.jpg') no-repeat center/cover;
                 text-align: center;
 
                 th,
@@ -441,7 +441,7 @@ body {
 
         &.register-form,
         &.profil-form {
-            background-image: url('images/background_Register.jpg');
+            background-image: url('/images/background_Register.jpg');
 
             form {
                 #register-file-upload-container {
@@ -482,7 +482,7 @@ body {
         }
 
         &.login-form {
-            background-image: url('images/background_Login.jpg');
+            background-image: url('/images/background_Login.jpg');
 
             form>input:nth-child(2) {
                 margin-top: 0;
