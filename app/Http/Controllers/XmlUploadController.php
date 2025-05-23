@@ -14,7 +14,7 @@ class XmlUploadController extends Controller
 
         $validFiles = [];
         foreach ($files as $file) {
-            if ($file->extension() === 'xml') {
+            if ($file->extension() === 'xml' && $file->getMimeType() === 'text/xml') {
                 $validFiles[] = $file;
             }
         }

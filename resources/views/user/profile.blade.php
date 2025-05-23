@@ -10,7 +10,7 @@
             enctype="multipart/form-data">
             @csrf
         </form>
-        
+
         <span id="upload-progress-text" class="progress-text">0 / 0</span>
         <div id="upload-progress-bar" class="progress-bar">
             <div id="upload-progress-fill" class="progress-fill">
@@ -59,15 +59,9 @@
             uploadMultiple: true,
             paramName: "xml_files",
             parallelUploads: 25,
-            maxFilesize: 10, // en Mo
-            // maxFiles: 25, // ✅ Limite à 5 fichiers
-            dictMaxFilesExceeded: "Vous ne pouvez pas téléverser plus de 5 fichiers.",
-
-            init: function () {
-                this.on("maxfilesexceeded", function (file) {
-                    this.removeFile(file); // Supprime le fichier en trop
-                });
-            }
+            maxFilesize: 10,
+            acceptedFiles: ".xml",
+            dictInvalidFileType: "Seuls les fichiers XML sont autorisés.",
         });
 
 
@@ -113,8 +107,8 @@
             }, 500);
         }
 
-        myDropzone.on("sending", function () {
-            if (uploadCheckInterval === null) {
+        myDropzone.on("sending", function (file) {
+            if (uploadCheckInterval === null && file.name.endsWith('.xml')) {
                 startUploadProgressCheck();
             }
         });
