@@ -8,6 +8,7 @@ return [
         ],
         'password' => [
             'min' => 'Le mot de passe doit contenir au moins :min caractères.',
+            'confirmed' => 'La confirmation du mot de passe ne correspond pas.',
         ],
     ],
 ];
