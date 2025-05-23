@@ -15,6 +15,7 @@
                 </div>
                 <input type="email" name="email" placeholder="Email" required value="{{ old('email') }}">
                 <input type="password" name="password" placeholder="Mot de passe" required>
+                <input type="password" name="password_confirmation" placeholder="Confirmer le mot de passe" required>
                 <div id="register-file-upload-container">
                     <label for="file-upload">
                         Sélectionner une photo de profil
