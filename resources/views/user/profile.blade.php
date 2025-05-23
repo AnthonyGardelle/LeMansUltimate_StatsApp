@@ -61,7 +61,7 @@
             parallelUploads: 25,
             maxFilesize: 10,
             acceptedFiles: ".xml",
-            dictInvalidFileType: "Seuls les fichiers XML bien formés sont autorisés.",
+            dictInvalidFileType: "Seuls les fichiers XML sont autorisés.",
         });
 
 
@@ -110,14 +110,6 @@
         myDropzone.on("sending", function (file) {
             if (uploadCheckInterval === null && file.name.endsWith('.xml')) {
                 startUploadProgressCheck();
-            }
-        });
-
-        myDropzone.on("error", function (file, response) {
-            if (typeof response === "object" && response.invalid_files) {
-                alert("Certains fichiers sont invalides :\n" + response.invalid_files.join("\n"));
-            } else {
-                alert("Une erreur est survenue lors de l'envoi du fichier.");
             }
         });
     </script>
