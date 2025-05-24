@@ -15,13 +15,7 @@ class XmlUploadController extends Controller
         $validFiles = [];
         foreach ($files as $file) {
             if ($file->extension() === 'xml' && $file->getMimeType() === 'text/xml') {
-                $filename = $file->getClientOriginalName();
-                $lastModifiedKey = 'last_modified_' . $filename;
-                $lastModified = $request->input($lastModifiedKey);
-                $validFiles[] = [
-                    'file' => $file,
-                    'last_modified' => $lastModified,
-                ];
+                $validFiles[] = $file;
             }
         }
 
@@ -29,17 +23,11 @@ class XmlUploadController extends Controller
             return response()->json(['message' => 'Aucun fichier XML valide.'], 422);
         }
 
-        foreach ($validFiles as $entry) {
-            $file = $entry['file'];
-            $lastModified = $entry['last_modified'];
-
-            $path = $file->store('uploads', 'public');
-
+        foreach ($validFiles as $file) {
             $infos = [
                 "user_id" => auth()->id(),
-                "last_modified_user" => $lastModified,
             ];
-
+            $path = $file->store('uploads', 'public');
             ProcessXmlFile::dispatch($path, $infos);
         }
 
