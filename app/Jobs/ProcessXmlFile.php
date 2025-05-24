@@ -25,9 +25,11 @@ class ProcessXmlFile implements ShouldQueue
 
     public function handle(): void
     {
-        Log::info('Date de dernière modification du fichier côté client', [
-            'last_modified_client' => $this->infos['last_modified_client'] ?? 'Non disponible'
-        ]);
+        $timestampMs = $this->infos['last_modified_user'] ?? null;
+        if ($timestampMs) {
+            $modificationDate = Carbon::createFromTimestampMs($timestampMs);
+            \Log::info("Fichier modifié localement le : " . $modificationDate->toDateTimeString());
+        }
 
         try {
             $xml = $this->loadXml();
