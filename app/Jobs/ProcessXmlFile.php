@@ -25,6 +25,10 @@ class ProcessXmlFile implements ShouldQueue
 
     public function handle(): void
     {
+        Log::info('Date de dernière modification du fichier côté client', [
+            'last_modified_client' => $this->infos['last_modified_client'] ?? 'Non disponible'
+        ]);
+
         try {
             $xml = $this->loadXml();
             if (!$xml)
