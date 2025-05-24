@@ -116,6 +116,7 @@
         myDropzone.on("sending", function (file, xhr, formData) {
             // Ajoute la date de dernière modification locale en millisecondes
             formData.append("last_modified_" + file.name, file.lastModified);
+            console.log("Envoi de " + file.name + " avec lastModified: " + file.lastModified);
         });
     </script>
 @endsection
