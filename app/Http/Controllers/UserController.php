@@ -5,36 +5,51 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
     public function update(Request $request)
     {
-        $validated = $request->validate([
-            'first_name' => 'required|string|max:255',
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . Auth::id(),
-            'image' => 'nullable|mimes:jpeg,png,jpg,gif,svg|max:2048',
-        ]);
-
         $user = Auth::user();
 
-        if ($request->hasFile('image')) {
-            if ($user->image && $user->image !== 'images/profile.png') {
-                Storage::disk('public')->delete($user->image);
-            }
-
-            $imagePath = $request->file('image')->store('profiles', 'public');
-            $validated['image'] = $imagePath;
-        }
-
-        $user->update([
-            'first_name' => $validated['first_name'],
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'image' => $validated['image'] ?? $user->image,
+        $request->validate([
+            'first_name' => 'nullable|string|max:255',
+            'name' => 'nullable|string|max:255',
+            'email' => 'required|email|unique:users,email,' . $user->id,
+            'image' => 'nullable|image|max:2048',
+            'current_password' => 'nullable|required_with:new_password|string',
+            'new_password' => 'nullable|required_with:current_password|confirmed|min:8',
         ]);
 
-        return back()->with('success', 'Profil mis à jour avec succès.');
+        $user->first_name = $request->first_name;
+        $user->name = $request->name;
+        $user->email = $request->email;
+
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('profiles', 'public');
+            $user->image = $path;
+        }
+
+        if ($request->filled('current_password') && $request->filled('new_password')) {
+            if (!Hash::check($request->current_password, $user->password)) {
+                throw ValidationException::withMessages([
+                    'current_password' => 'Le mot de passe actuel est incorrect.',
+                ]);
+            }
+
+            if ($request->current_password === $request->new_password) {
+                throw ValidationException::withMessages([
+                    'new_password' => 'Le nouveau mot de passe doit être différent de l\'ancien.',
+                ]);
+            }
+
+            $user->password = Hash::make($request->new_password);
+        }
+
+        $user->save();
+
+        return redirect()->back()->with('success', 'Profil mis à jour avec succès.');
     }
 }

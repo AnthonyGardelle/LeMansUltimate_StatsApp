@@ -30,6 +30,23 @@ window.closeSuccessPopup = function () {
     popup.style.animation = 'fadeOut 0.3s ease-out forwards';
 }
 
+window.closeStatusPopup = function () {
+    const popup = document.getElementById('status-popup');
+    popup.style.animation = 'fadeOut 0.3s ease-out forwards';
+}
+
+window.showPasswordField = function () {
+    let div = document.getElementById('password_fields');
+    let img = document.getElementById('password_fields_img');
+    if (div.style.display === 'none' || div.style.display === '') {
+        div.style.display = 'flex';
+        img.style.transform = 'rotate(90deg)';
+    } else {
+        div.style.display = 'none';
+        img.style.transform = 'rotate(0deg)';
+    }
+}
+
 function initializeFileUpload() {
     const fileUploadElement = document.getElementById("file-upload");
     const fileNameElement = document.getElementById("file-name");
@@ -50,6 +67,10 @@ setTimeout(() => {
     const successPopup = document.getElementById('success-popup');
     if (successPopup) {
         successPopup.style.animation = 'fadeOut 0.3s ease-out forwards';
+    }
+    const statusPopup = document.getElementById('status-popup');
+    if (statusPopup) {
+        statusPopup.style.animation = 'fadeOut 0.3s ease-out forwards';
     }
 }, 5000);
 

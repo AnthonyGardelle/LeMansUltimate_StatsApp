@@ -12,7 +12,10 @@
                 <input class="no-margin-top" type="email" name="email" placeholder="Email" required
                     value="{{ old('email') }}">
                 <input type="password" name="password" placeholder="Mot de passe" required>
-                <button type="submit">Se connecter</button>
+                <div class="form-actions">
+                    <button type="submit">Se connecter</button>
+                    <a href="{{ route('password.request') }}">Mot de passe oublié ?</a>
+                </div>
             </form>
         </div>
     </div>

@@ -7,7 +7,7 @@
     <title>@yield('title')</title>
     @vite(['resources/scss/app.scss', 'resources/js/app.js'])
     <script src="https://unpkg.com/dropzone@6.0.0-beta.1/dist/dropzone-min.js"></script>
-    <link href="https://unpkg.com/dropzone@6.0.0-beta.1/dist/dropzone.css" rel="stylesheet" type="text/css"/>
+    <link href="https://unpkg.com/dropzone@6.0.0-beta.1/dist/dropzone.css" rel="stylesheet" type="text/css" />
     <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('images/apple-touch-icon.png') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('images/favicon-32x32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('images/favicon-16x16.png') }}">
@@ -38,6 +38,15 @@
                     <span id="close-popup" onclick="closeSuccessPopup()">&times;</span>
                 </div>
                 <p>{{ session('success') }}</p>
+            </div>
+        @endif
+        @if(session('status'))
+            <div id="status-popup">
+                <div id="popup-header">
+                    <h3>Information ! ℹ️</h3>
+                    <span id="close-popup" onclick="closeStatusPopup()">&times;</span>
+                </div>
+                <p>{{ session('status') }}</p>
             </div>
         @endif
     </header>
