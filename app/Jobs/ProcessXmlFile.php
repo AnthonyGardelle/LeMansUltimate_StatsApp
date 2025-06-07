@@ -177,8 +177,29 @@ class ProcessXmlFile implements ShouldQueue
                 'dnf_reason' => (string) $driver->DNFReason,
             ];
 
-            $lmuSessionParticipation ??= $lmuSessionParticipationService->getLmuSessionParticipation($lmuSessionData) ??
-                $lmuSessionParticipationService->createLmuSessionParticipation($lmuSessionData);
+            // Log the session data for debugging
+            Log::info("Processing driver participation", [
+                'driver_name' => $driverFullName,
+                'car_number' => $carNumber,
+                'lmu_session_data' => $lmuSessionData
+            ]);
+
+            $existingParticipation = $lmuSessionParticipationService->getLmuSessionParticipation($lmuSessionData);
+            
+            if ($existingParticipation) {
+                Log::info("Found existing participation", [
+                    'driver_name' => $driverFullName,
+                    'participation_id' => $existingParticipation->id
+                ]);
+                $lmuSessionParticipation = $existingParticipation;
+            } else {
+                $newParticipation = $lmuSessionParticipationService->createLmuSessionParticipation($lmuSessionData);
+                Log::info("Created new participation", [
+                    'driver_name' => $driverFullName,
+                    'participation_id' => $newParticipation->id
+                ]);
+                $lmuSessionParticipation = $newParticipation;
+            }
         }
     }
 }
