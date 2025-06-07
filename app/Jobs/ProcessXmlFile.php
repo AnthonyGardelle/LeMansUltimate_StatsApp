@@ -131,6 +131,7 @@ class ProcessXmlFile implements ShouldQueue
         $carService = app(\App\Services\CarService::class);
         $driverService = app(\App\Services\DriverService::class);
         $lmuSessionParticipationService = app(\App\Services\LmuSessionParticipationService::class);
+        $lmuRaceSessionParticipationService = app(\App\Services\LmuRaceSessionParticipationService::class);
 
         $carTypes = $carClasses = $teams = $carsNumbers = $driversList = [];
 
@@ -177,28 +178,25 @@ class ProcessXmlFile implements ShouldQueue
                 'dnf_reason' => (string) $driver->DNFReason,
             ];
 
-            // Log the session data for debugging
-            Log::info("Processing driver participation", [
-                'driver_name' => $driverFullName,
-                'car_number' => $carNumber,
-                'lmu_session_data' => $lmuSessionData
-            ]);
-
             $existingParticipation = $lmuSessionParticipationService->getLmuSessionParticipation($lmuSessionData);
-            
+
             if ($existingParticipation) {
-                Log::info("Found existing participation", [
-                    'driver_name' => $driverFullName,
-                    'participation_id' => $existingParticipation->id
-                ]);
                 $lmuSessionParticipation = $existingParticipation;
             } else {
                 $newParticipation = $lmuSessionParticipationService->createLmuSessionParticipation($lmuSessionData);
-                Log::info("Created new participation", [
-                    'driver_name' => $driverFullName,
-                    'participation_id' => $newParticipation->id
-                ]);
                 $lmuSessionParticipation = $newParticipation;
+            }
+
+            $lmuRaceSessionData = [
+                'lmu_session_participation_id' => $lmuSessionParticipation->id,
+                'grid_position' => (int) $driver->GridPos,
+                'class_grid_position' => (int) $driver->ClassGridPos,
+                'finish_time' => (float) $driver->FinishTime,
+            ];
+
+            $existingRaceParticipation = $lmuRaceSessionParticipationService->getLmuRaceSessionParticipation($lmuRaceSessionData);
+            if (!$existingRaceParticipation) {
+                $lmuRaceSessionParticipationService->createLmuRaceSessionParticipation($lmuRaceSessionData);
             }
         }
     }
