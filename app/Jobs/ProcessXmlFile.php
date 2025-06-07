@@ -9,6 +9,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
+use App\Models\LmuSession;
 
 class ProcessXmlFile implements ShouldQueue
 {
@@ -34,7 +35,7 @@ class ProcessXmlFile implements ShouldQueue
             $lmuSessionType = $this->getOrCreateLmuSessionType($sessionType);
             $track = $this->getOrCreateTrack($xml);
             $lmuSession = $this->getOrCreateLmuSession($xml, $sessionType, $lmuSessionType, $track);
-            $this->processDrivers($xml, $sessionType);
+            $this->processDrivers($xml, $sessionType, $lmuSession);
 
             Cache::increment('upload_progress_' . $this->infos['user_id']);
         } catch (\Throwable $e) {
@@ -122,14 +123,14 @@ class ProcessXmlFile implements ShouldQueue
 
         return $service->getLmuSession($details) ?? $service->createLmuSession($details);
     }
-
-    protected function processDrivers(\SimpleXMLElement $xml, string $sessionType): void
+    protected function processDrivers(\SimpleXMLElement $xml, string $sessionType, LmuSession $lmuSession): void
     {
         $carTypeService = app(\App\Services\CarTypeService::class);
         $carClassService = app(\App\Services\CarClassService::class);
         $teamService = app(\App\Services\TeamService::class);
         $carService = app(\App\Services\CarService::class);
         $driverService = app(\App\Services\DriverService::class);
+        $lmuSessionParticipationService = app(\App\Services\LmuSessionParticipationService::class);
 
         $carTypes = $carClasses = $teams = $carsNumbers = $driversList = [];
 
@@ -162,6 +163,22 @@ class ProcessXmlFile implements ShouldQueue
                     'full_name' => $driverFullName,
                     'is_player' => $driver->isPlayer,
                 ]);
+
+            $lmuSessionData = [
+                'lmu_session_id' => $lmuSession->id,
+                'driver_id' => $driversList[$driverFullName]->id,
+                'car_id' => $carsNumbers[$carNumber]->id,
+                'finish_position' => (int) $driver->FinishPosition,
+                'class_finish_position' => (int) $driver->ClassFinishPosition,
+                'laps_completed' => (int) $driver->LapsCompleted,
+                'pit_stops_executed' => (int) $driver->PitStopsExecuted,
+                'best_lap_time' => (float) $driver->BestLapTime,
+                'finish_status' => (string) $driver->FinishStatus,
+                'dnf_reason' => (string) $driver->DNFReason,
+            ];
+
+            $lmuSessionParticipation ??= $lmuSessionParticipationService->getLmuSessionParticipation($lmuSessionData) ??
+                $lmuSessionParticipationService->createLmuSessionParticipation($lmuSessionData);
         }
     }
 }
