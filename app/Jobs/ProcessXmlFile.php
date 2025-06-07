@@ -187,16 +187,18 @@ class ProcessXmlFile implements ShouldQueue
                 $lmuSessionParticipation = $newParticipation;
             }
 
-            $lmuRaceSessionData = [
-                'lmu_session_participation_id' => $lmuSessionParticipation->id,
-                'grid_position' => (int) $driver->GridPos,
-                'class_grid_position' => (int) $driver->ClassGridPos,
-                'finish_time' => (float) $driver->FinishTime,
-            ];
+            if ($sessionType === 'Race') {
+                $lmuRaceSessionData = [
+                    'lmu_session_participation_id' => $lmuSessionParticipation->id,
+                    'grid_position' => (int) $driver->GridPos,
+                    'class_grid_position' => (int) $driver->ClassGridPos,
+                    'finish_time' => (float) $driver->FinishTime,
+                ];
 
-            $existingRaceParticipation = $lmuRaceSessionParticipationService->getLmuRaceSessionParticipation($lmuRaceSessionData);
-            if (!$existingRaceParticipation) {
-                $lmuRaceSessionParticipationService->createLmuRaceSessionParticipation($lmuRaceSessionData);
+                $existingRaceParticipation = $lmuRaceSessionParticipationService->getLmuRaceSessionParticipation($lmuRaceSessionData);
+                if (!$existingRaceParticipation) {
+                    $lmuRaceSessionParticipationService->createLmuRaceSessionParticipation($lmuRaceSessionData);
+                }
             }
         }
     }
