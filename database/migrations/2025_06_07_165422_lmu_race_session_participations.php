@@ -13,7 +13,7 @@ return new class extends Migration {
         Schema::create('lmu_race_session_participations', function (Blueprint $table) {
             $table->id();
             $table->timestamps();
-            $table->foreignId('lmu_session_participation_id')->onDelete('cascade');
+            $table->foreignId('lmu_session_participation_id')->constrained()->onDelete('cascade');
             $table->integer('grid_position')->nullable(false);
             $table->integer('class_grid_position')->nullable(false);
             $table->float('finish_time')->nullable();

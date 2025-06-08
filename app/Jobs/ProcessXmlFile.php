@@ -200,6 +200,66 @@ class ProcessXmlFile implements ShouldQueue
                     $lmuRaceSessionParticipationService->createLmuRaceSessionParticipation($lmuRaceSessionData);
                 }
             }
+
+            // Process laps for this driver
+            $this->processDriverLaps($driver, $lmuSessionParticipation);
+        }
+    }
+
+    /**
+     * Process laps for a specific driver
+     */
+    protected function processDriverLaps(\SimpleXMLElement $driver, $lmuSessionParticipation): void
+    {
+        $lmuLapService = app(\App\Services\LmuLapService::class);
+
+        if (!isset($driver->Lap)) {
+            return; // No laps data for this driver
+        }
+
+        foreach ($driver->Lap as $lap) {
+            $lapData = [
+                'lmu_session_participation_id' => $lmuSessionParticipation->id,
+                'lap_number' => (int) $lap['num'],
+                'finish_position' => (int) $lap['p'],
+                'lap_time' => (float) $lap,
+                'top_speed' => (float) $lap['topspeed'],
+                'remaining_fuel' => (float) $lap['fuel'],
+                'fuel_used' => (float) $lap['fuelUsed'],
+                'remaining_virtual_energy' => 0.0,
+                'virtual_energy_used' => 0.0,
+                'tire_wear_fl' => (float) $lap['twfl'],
+                'tire_wear_fr' => (float) $lap['twfr'],
+                'tire_wear_rl' => (float) $lap['twrl'],
+                'tire_wear_rr' => (float) $lap['twrr'],
+            ];
+
+            Log::info("Processing lap", [
+                'lap_number' => $lapData['lap_number'],
+                'driver_participation_id' => $lmuSessionParticipation->id,
+                'lap_time' => $lapData['lap_time']
+            ]);
+
+            $existingLap = $lmuLapService->getLmuLap($lapData);
+            if (!$existingLap) {
+                try {
+                    $lmuLapService->createLmuLap($lapData);
+                    Log::info("Created new lap", [
+                        'lap_number' => $lapData['lap_number'],
+                        'driver_participation_id' => $lmuSessionParticipation->id
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error("Failed to create lap", [
+                        'error' => $e->getMessage(),
+                        'lap_data' => $lapData
+                    ]);
+                }
+            } else {
+                Log::info("Lap already exists", [
+                    'lap_number' => $lapData['lap_number'],
+                    'existing_lap_id' => $existingLap->id
+                ]);
+            }
         }
     }
 }
