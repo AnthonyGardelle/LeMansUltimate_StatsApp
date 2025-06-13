@@ -14,6 +14,7 @@ return new class extends Migration {
             $table->id();
             $table->timestamps();
             $table->foreignId('lmu_session_participation_id')->constrained()->onDelete('cascade');
+            $table->foreignId('lmu_compound_id')->constrained()->onDelete('cascade');
             $table->integer('lap_number')->nullable(false);
             $table->integer('finish_position')->nullable(false);
             $table->float('lap_time')->nullable(false);

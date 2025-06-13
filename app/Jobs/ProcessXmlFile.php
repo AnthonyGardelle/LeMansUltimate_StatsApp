@@ -212,14 +212,35 @@ class ProcessXmlFile implements ShouldQueue
     protected function processDriverLaps(\SimpleXMLElement $driver, $lmuSessionParticipation): void
     {
         $lmuLapService = app(\App\Services\LmuLapService::class);
+        $lmuCompoundService = app(\App\Services\LmuCompoundService::class);
 
         if (!isset($driver->Lap)) {
             return; // No laps data for this driver
         }
 
         foreach ($driver->Lap as $lap) {
+            $compoundData = [
+                'front_compound' => (string) $lap['fcompound'],
+                'rear_compound' => (string) $lap['rcompound'],
+            ];
+
+            $existingCompound = $lmuCompoundService->getLmuCompound($compoundData);
+            if (!$existingCompound) {
+                try {
+                    $lmucompound = $lmuCompoundService->createLmuCompound($compoundData);
+                } catch (\Exception $e) {
+                    Log::error("Error creating compound data: " . $e->getMessage(), [
+                        'compoundData' => $compoundData,
+                        'filePath' => $this->filePath
+                    ]);
+                }
+            } else {
+                $lmucompound = $existingCompound;
+            }
+
             $lapData = [
                 'lmu_session_participation_id' => $lmuSessionParticipation->id,
+                'lmu_compound_id' => $lmucompound->id,
                 'lap_number' => (int) $lap['num'],
                 'finish_position' => (int) $lap['p'],
                 'lap_time' => (float) $lap,
@@ -234,31 +255,16 @@ class ProcessXmlFile implements ShouldQueue
                 'tire_wear_rr' => (float) $lap['twrr'],
             ];
 
-            Log::info("Processing lap", [
-                'lap_number' => $lapData['lap_number'],
-                'driver_participation_id' => $lmuSessionParticipation->id,
-                'lap_time' => $lapData['lap_time']
-            ]);
-
             $existingLap = $lmuLapService->getLmuLap($lapData);
             if (!$existingLap) {
                 try {
                     $lmuLapService->createLmuLap($lapData);
-                    Log::info("Created new lap", [
-                        'lap_number' => $lapData['lap_number'],
-                        'driver_participation_id' => $lmuSessionParticipation->id
-                    ]);
                 } catch (\Exception $e) {
-                    Log::error("Failed to create lap", [
-                        'error' => $e->getMessage(),
-                        'lap_data' => $lapData
+                    Log::error("Error creating lap data: " . $e->getMessage(), [
+                        'lapData' => $lapData,
+                        'filePath' => $this->filePath
                     ]);
                 }
-            } else {
-                Log::info("Lap already exists", [
-                    'lap_number' => $lapData['lap_number'],
-                    'existing_lap_id' => $existingLap->id
-                ]);
             }
         }
     }

@@ -8,6 +8,7 @@ class LmuLap extends Model
 {
     protected $fillable = [
         'lmu_session_participation_id',
+        'lmu_compound_id',
         'lap_number',
         'finish_position',
         'lap_time',
