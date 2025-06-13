@@ -213,6 +213,7 @@ class ProcessXmlFile implements ShouldQueue
     {
         $lmuLapService = app(\App\Services\LmuLapService::class);
         $lmuCompoundService = app(\App\Services\LmuCompoundService::class);
+        $lmuLapSectorService = app(\App\Services\LmuLapSectorService::class);
 
         if (!isset($driver->Lap)) {
             return; // No laps data for this driver
@@ -258,13 +259,79 @@ class ProcessXmlFile implements ShouldQueue
             $existingLap = $lmuLapService->getLmuLap($lapData);
             if (!$existingLap) {
                 try {
-                    $lmuLapService->createLmuLap($lapData);
+                    $createdLap = $lmuLapService->createLmuLap($lapData);
+
+                    // Process sectors for this lap
+                    $this->processLapSectors($lap, $createdLap, $lmuLapSectorService);
+
                 } catch (\Exception $e) {
                     Log::error("Error creating lap data: " . $e->getMessage(), [
                         'lapData' => $lapData,
                         'filePath' => $this->filePath
                     ]);
                 }
+            } else {
+                // Process sectors for existing lap (in case they weren't created before)
+                $this->processLapSectors($lap, $existingLap, $lmuLapSectorService);
+            }
+        }
+    }
+
+    /**
+     * Process sectors for a specific lap
+     */
+    protected function processLapSectors(\SimpleXMLElement $lap, $lmuLap, $lmuLapSectorService): void
+    {
+        // Check if sector times are available in the XML
+        $sectorTimes = [
+            1 => (string) $lap['s1'] ?? null,
+            2 => (string) $lap['s2'] ?? null,
+            3 => (string) $lap['s3'] ?? null,
+        ];
+
+        foreach ($sectorTimes as $sectorNumber => $sectorTime) {
+            // Skip if sector time is not available or is invalid
+            if (empty($sectorTime) || $sectorTime === '--.---' || $sectorTime === '0' || !is_numeric($sectorTime)) {
+                Log::info("Skipping sector {$sectorNumber} - invalid time", [
+                    'lap_id' => $lmuLap->id,
+                    'sector_time' => $sectorTime
+                ]);
+                continue;
+            }
+
+            $sectorData = [
+                'lmu_lap_id' => $lmuLap->id,
+                'sector_number' => $sectorNumber,
+                'sector_time' => (float) $sectorTime,
+            ];
+
+            Log::info("Processing sector", [
+                'lap_id' => $lmuLap->id,
+                'sector_number' => $sectorNumber,
+                'sector_time' => $sectorData['sector_time']
+            ]);
+
+            $existingSector = $lmuLapSectorService->getLmuLapSector($sectorData);
+            if (!$existingSector) {
+                try {
+                    $lmuLapSectorService->createLmuLapSector($sectorData);
+                    Log::info("Created new sector", [
+                        'lap_id' => $lmuLap->id,
+                        'sector_number' => $sectorNumber
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error("Failed to create sector", [
+                        'error' => $e->getMessage(),
+                        'sector_data' => $sectorData,
+                        'filePath' => $this->filePath
+                    ]);
+                }
+            } else {
+                Log::info("Sector already exists", [
+                    'lap_id' => $lmuLap->id,
+                    'sector_number' => $sectorNumber,
+                    'existing_sector_id' => $existingSector->id
+                ]);
             }
         }
     }
