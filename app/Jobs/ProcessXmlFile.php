@@ -41,7 +41,7 @@ class ProcessXmlFile implements ShouldQueue
             $lmuSessionType = $this->getOrCreateLmuSessionType($sessionType);
             $track = $this->getOrCreateTrack($xml);
             $lmuSession = $this->getOrCreateLmuSession($xml, $sessionType, $lmuSessionType, $track);
-            
+
             $this->processDrivers($xml, $sessionType, $lmuSession);
 
             Cache::increment('upload_progress_' . $this->infos['user_id']);
@@ -57,7 +57,7 @@ class ProcessXmlFile implements ShouldQueue
     protected function loadXml(): ?\SimpleXMLElement
     {
         $path = storage_path("app/public/{$this->filePath}");
-        
+
         if (!file_exists($path)) {
             Log::error("XML file not found", ['path' => $path]);
             return null;
@@ -94,13 +94,13 @@ class ProcessXmlFile implements ShouldQueue
     protected function getSessionType(\SimpleXMLElement $xml): ?string
     {
         $sessionTypes = ['Practice1', 'Qualify', 'Race'];
-        
+
         foreach ($sessionTypes as $type) {
             if (isset($xml->RaceResults->{$type})) {
                 return $type;
             }
         }
-        
+
         return null;
     }
 
@@ -116,7 +116,7 @@ class ProcessXmlFile implements ShouldQueue
         $service = app(\App\Services\TrackService::class);
         $trackData = $this->extractTrackData($xml);
 
-        return $service->getTrack(...array_values($trackData)) 
+        return $service->getTrack(...array_values($trackData))
             ?? $service->createTrack($trackData);
     }
 
@@ -135,8 +135,11 @@ class ProcessXmlFile implements ShouldQueue
         $service = app(\App\Services\LmuSessionService::class);
         $sessionData = $this->extractSessionData($xml, $sessionType, $sessionTypeModel, $track);
 
-        return $service->getLmuSession($sessionData) 
-            ?? $service->createLmuSession($sessionData);
+        if ($service->getLmuSession($sessionData)) {
+            Cache::increment('upload_progress_' . $this->infos['user_id']);
+            return null;
+        }
+        return $service->createLmuSession($sessionData);
     }
 
     protected function extractSessionData($xml, string $sessionType, $sessionTypeModel, $track): array
@@ -168,7 +171,7 @@ class ProcessXmlFile implements ShouldQueue
             try {
                 $entities = $this->getOrCreateDriverEntities($driver, $services, $entityCaches);
                 $lmuSessionParticipation = $this->createOrGetSessionParticipation($driver, $lmuSession, $entities, $services);
-                
+
                 if ($sessionType === 'Race') {
                     $this->createRaceParticipation($driver, $lmuSessionParticipation, $services);
                 }
