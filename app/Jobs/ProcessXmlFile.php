@@ -28,40 +28,61 @@ class ProcessXmlFile implements ShouldQueue
     {
         try {
             $xml = $this->loadXml();
-            if (!$xml)
+            if (!$xml) {
                 return;
+            }
 
             $sessionType = $this->getSessionType($xml);
+            if (!$sessionType) {
+                Log::warning("No valid session type found in XML file", ['filePath' => $this->filePath]);
+                return;
+            }
+
             $lmuSessionType = $this->getOrCreateLmuSessionType($sessionType);
             $track = $this->getOrCreateTrack($xml);
             $lmuSession = $this->getOrCreateLmuSession($xml, $sessionType, $lmuSessionType, $track);
+            
             $this->processDrivers($xml, $sessionType, $lmuSession);
 
             Cache::increment('upload_progress_' . $this->infos['user_id']);
         } catch (\Throwable $e) {
-            Log::error("Error processing XML file: " . $e->getMessage(), ['filePath' => $this->filePath]);
+            Log::error("Error processing XML file: " . $e->getMessage(), [
+                'filePath' => $this->filePath,
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
         }
     }
 
     protected function loadXml(): ?\SimpleXMLElement
     {
         $path = storage_path("app/public/{$this->filePath}");
-        $content = file_get_contents($path);
-
-        if ($content === false) {
-            Log::error("Impossible de lire le fichier XML à l'emplacement : {$path}");
+        
+        if (!file_exists($path)) {
+            Log::error("XML file not found", ['path' => $path]);
             return null;
         }
 
+        $content = file_get_contents($path);
+        if ($content === false) {
+            Log::error("Failed to read XML file", ['path' => $path]);
+            return null;
+        }
+
+        return $this->parseXmlContent($content);
+    }
+
+    protected function parseXmlContent(string $content): ?\SimpleXMLElement
+    {
         libxml_use_internal_errors(true);
         $xml = simplexml_load_string($content);
 
         if ($xml === false) {
             $errors = libxml_get_errors();
             libxml_clear_errors();
-            Log::error("Échec du parsing XML", [
+            Log::error("XML parsing failed", [
                 'filePath' => $this->filePath,
-                'errors' => array_map(fn($e) => $e->message, $errors)
+                'errors' => array_map(fn($e) => trim($e->message), $errors)
             ]);
             Cache::decrement('upload_total_' . $this->infos['user_id']);
             return null;
@@ -72,11 +93,14 @@ class ProcessXmlFile implements ShouldQueue
 
     protected function getSessionType(\SimpleXMLElement $xml): ?string
     {
-        foreach (['Practice1', 'Qualify', 'Race'] as $type) {
+        $sessionTypes = ['Practice1', 'Qualify', 'Race'];
+        
+        foreach ($sessionTypes as $type) {
             if (isset($xml->RaceResults->{$type})) {
                 return $type;
             }
         }
+        
         return null;
     }
 
@@ -90,21 +114,34 @@ class ProcessXmlFile implements ShouldQueue
     protected function getOrCreateTrack(\SimpleXMLElement $xml)
     {
         $service = app(\App\Services\TrackService::class);
-        $data = [
+        $trackData = $this->extractTrackData($xml);
+
+        return $service->getTrack(...array_values($trackData)) 
+            ?? $service->createTrack($trackData);
+    }
+
+    protected function extractTrackData(\SimpleXMLElement $xml): array
+    {
+        return [
             'track_venue' => (string) $xml->RaceResults->TrackVenue,
             'track_course' => (string) $xml->RaceResults->TrackCourse,
             'track_event' => (string) $xml->RaceResults->TrackEvent,
             'track_length' => (float) $xml->RaceResults->TrackLength,
         ];
-
-        return $service->getTrack(...array_values($data)) ?? $service->createTrack($data);
     }
 
     protected function getOrCreateLmuSession($xml, string $sessionType, $sessionTypeModel, $track)
     {
         $service = app(\App\Services\LmuSessionService::class);
+        $sessionData = $this->extractSessionData($xml, $sessionType, $sessionTypeModel, $track);
 
-        $details = [
+        return $service->getLmuSession($sessionData) 
+            ?? $service->createLmuSession($sessionData);
+    }
+
+    protected function extractSessionData($xml, string $sessionType, $sessionTypeModel, $track): array
+    {
+        return [
             'lmu_session_type_id' => $sessionTypeModel->id,
             'track_id' => $track->id,
             'starting_at' => Carbon::createFromFormat('Y/m/d H:i:s', (string) $xml->RaceResults->{$sessionType}->TimeString),
@@ -120,151 +157,213 @@ class ProcessXmlFile implements ShouldQueue
             'limited_tires' => (bool) $xml->RaceResults->LimitedTires,
             'tire_warmers' => (bool) $xml->RaceResults->TireWarmers,
         ];
-
-        return $service->getLmuSession($details) ?? $service->createLmuSession($details);
     }
+
     protected function processDrivers(\SimpleXMLElement $xml, string $sessionType, LmuSession $lmuSession): void
     {
-        $carTypeService = app(\App\Services\CarTypeService::class);
-        $carClassService = app(\App\Services\CarClassService::class);
-        $teamService = app(\App\Services\TeamService::class);
-        $carService = app(\App\Services\CarService::class);
-        $driverService = app(\App\Services\DriverService::class);
-        $lmuSessionParticipationService = app(\App\Services\LmuSessionParticipationService::class);
-        $lmuRaceSessionParticipationService = app(\App\Services\LmuRaceSessionParticipationService::class);
-
-        $carTypes = $carClasses = $teams = $carsNumbers = $driversList = [];
+        $services = $this->initializeServices();
+        $entityCaches = $this->initializeEntityCaches();
 
         foreach ($xml->RaceResults->{$sessionType}->Driver as $driver) {
-            $carTypeName = (string) $driver->CarType;
-            $carClassName = (string) $driver->CarClass;
-            $teamName = (string) $driver->TeamName;
-            $carNumber = (string) $driver->CarNumber;
-            $driverFullName = (string) $driver->Name;
-
-            $carTypes[$carTypeName] ??= $carTypeService->getCarTypeByName($carTypeName)
-                ?? $carTypeService->createCarType(['car_type_name' => $carTypeName]);
-
-            $carClasses[$carClassName] ??= $carClassService->getCarClassByName($carClassName)
-                ?? $carClassService->createCarClass(['car_class_name' => $carClassName]);
-
-            $teams[$teamName] ??= $teamService->getTeamByName($teamName)
-                ?? $teamService->createTeam(['team_name' => $teamName]);
-
-            $carsNumbers[$carNumber] ??= $carService->getCarByCarNumber($carNumber)
-                ?? $carService->createCar([
-                    'car_number' => $carNumber,
-                    'car_type_id' => $carTypes[$carTypeName]->id,
-                    'car_class_id' => $carClasses[$carClassName]->id,
-                    'team_id' => $teams[$teamName]->id,
-                ]);
-
-            $driversList[$driverFullName] ??= $driverService->getDriverByFullName($driverFullName)
-                ?? $driverService->createDriver([
-                    'full_name' => $driverFullName,
-                    'is_player' => $driver->isPlayer,
-                ]);
-
-            $lmuSessionData = [
-                'lmu_session_id' => $lmuSession->id,
-                'driver_id' => $driversList[$driverFullName]->id,
-                'car_id' => $carsNumbers[$carNumber]->id,
-                'finish_position' => (int) $driver->Position,
-                'class_finish_position' => (int) $driver->ClassPosition,
-                'laps_completed' => (int) $driver->Laps,
-                'pit_stops_executed' => (int) $driver->Pitstops,
-                'best_lap_time' => (float) $driver->BestLapTime,
-                'finish_status' => (string) $driver->FinishStatus,
-                'dnf_reason' => (string) $driver->DNFReason,
-            ];
-
-            $existingParticipation = $lmuSessionParticipationService->getLmuSessionParticipation($lmuSessionData);
-
-            if ($existingParticipation) {
-                $lmuSessionParticipation = $existingParticipation;
-            } else {
-                $newParticipation = $lmuSessionParticipationService->createLmuSessionParticipation($lmuSessionData);
-                $lmuSessionParticipation = $newParticipation;
-            }
-
-            if ($sessionType === 'Race') {
-                $lmuRaceSessionData = [
-                    'lmu_session_participation_id' => $lmuSessionParticipation->id,
-                    'grid_position' => (int) $driver->GridPos,
-                    'class_grid_position' => (int) $driver->ClassGridPos,
-                    'finish_time' => (float) $driver->FinishTime,
-                ];
-
-                $existingRaceParticipation = $lmuRaceSessionParticipationService->getLmuRaceSessionParticipation($lmuRaceSessionData);
-                if (!$existingRaceParticipation) {
-                    $lmuRaceSessionParticipationService->createLmuRaceSessionParticipation($lmuRaceSessionData);
+            try {
+                $entities = $this->getOrCreateDriverEntities($driver, $services, $entityCaches);
+                $lmuSessionParticipation = $this->createOrGetSessionParticipation($driver, $lmuSession, $entities, $services);
+                
+                if ($sessionType === 'Race') {
+                    $this->createRaceParticipation($driver, $lmuSessionParticipation, $services);
                 }
-            }
 
-            // Process laps for this driver
-            $this->processDriverLaps($driver, $lmuSessionParticipation);
+                $this->processDriverLaps($driver, $lmuSessionParticipation);
+            } catch (\Exception $e) {
+                Log::error("Error processing driver data", [
+                    'driver' => (string) $driver->Name,
+                    'error' => $e->getMessage(),
+                    'filePath' => $this->filePath
+                ]);
+            }
         }
     }
 
-    /**
-     * Process laps for a specific driver
-     */
+    protected function initializeServices(): array
+    {
+        return [
+            'carType' => app(\App\Services\CarTypeService::class),
+            'carClass' => app(\App\Services\CarClassService::class),
+            'team' => app(\App\Services\TeamService::class),
+            'car' => app(\App\Services\CarService::class),
+            'driver' => app(\App\Services\DriverService::class),
+            'sessionParticipation' => app(\App\Services\LmuSessionParticipationService::class),
+            'raceParticipation' => app(\App\Services\LmuRaceSessionParticipationService::class),
+        ];
+    }
+
+    protected function initializeEntityCaches(): array
+    {
+        return [
+            'carTypes' => [],
+            'carClasses' => [],
+            'teams' => [],
+            'cars' => [],
+            'drivers' => []
+        ];
+    }
+
+    protected function getOrCreateDriverEntities(\SimpleXMLElement $driver, array $services, array &$entityCaches): array
+    {
+        $carTypeName = (string) $driver->CarType;
+        $carClassName = (string) $driver->CarClass;
+        $teamName = (string) $driver->TeamName;
+        $carNumber = (string) $driver->CarNumber;
+        $driverFullName = (string) $driver->Name;
+
+        // Get or create entities with caching
+        $entityCaches['carTypes'][$carTypeName] ??= $services['carType']->getCarTypeByName($carTypeName)
+            ?? $services['carType']->createCarType(['car_type_name' => $carTypeName]);
+
+        $entityCaches['carClasses'][$carClassName] ??= $services['carClass']->getCarClassByName($carClassName)
+            ?? $services['carClass']->createCarClass(['car_class_name' => $carClassName]);
+
+        $entityCaches['teams'][$teamName] ??= $services['team']->getTeamByName($teamName)
+            ?? $services['team']->createTeam(['team_name' => $teamName]);
+
+        $entityCaches['cars'][$carNumber] ??= $services['car']->getCarByCarNumber($carNumber)
+            ?? $services['car']->createCar([
+                'car_number' => $carNumber,
+                'car_type_id' => $entityCaches['carTypes'][$carTypeName]->id,
+                'car_class_id' => $entityCaches['carClasses'][$carClassName]->id,
+                'team_id' => $entityCaches['teams'][$teamName]->id,
+            ]);
+
+        $entityCaches['drivers'][$driverFullName] ??= $services['driver']->getDriverByFullName($driverFullName)
+            ?? $services['driver']->createDriver([
+                'full_name' => $driverFullName,
+                'is_player' => $driver->isPlayer,
+            ]);
+
+        return [
+            'car' => $entityCaches['cars'][$carNumber],
+            'driver' => $entityCaches['drivers'][$driverFullName],
+        ];
+    }
+
+    protected function createOrGetSessionParticipation(\SimpleXMLElement $driver, LmuSession $lmuSession, array $entities, array $services)
+    {
+        $sessionData = [
+            'lmu_session_id' => $lmuSession->id,
+            'driver_id' => $entities['driver']->id,
+            'car_id' => $entities['car']->id,
+            'finish_position' => (int) $driver->Position,
+            'class_finish_position' => (int) $driver->ClassPosition,
+            'laps_completed' => (int) $driver->Laps,
+            'pit_stops_executed' => (int) $driver->Pitstops,
+            'best_lap_time' => (float) $driver->BestLapTime,
+            'finish_status' => (string) $driver->FinishStatus,
+            'dnf_reason' => (string) $driver->DNFReason,
+        ];
+
+        return $services['sessionParticipation']->getLmuSessionParticipation($sessionData)
+            ?? $services['sessionParticipation']->createLmuSessionParticipation($sessionData);
+    }
+
+    protected function createRaceParticipation(\SimpleXMLElement $driver, $lmuSessionParticipation, array $services): void
+    {
+        $raceData = [
+            'lmu_session_participation_id' => $lmuSessionParticipation->id,
+            'grid_position' => (int) $driver->GridPos,
+            'class_grid_position' => (int) $driver->ClassGridPos,
+            'finish_time' => (float) $driver->FinishTime,
+        ];
+
+        $existingRaceParticipation = $services['raceParticipation']->getLmuRaceSessionParticipation($raceData);
+        if (!$existingRaceParticipation) {
+            $services['raceParticipation']->createLmuRaceSessionParticipation($raceData);
+        }
+    }
+
     protected function processDriverLaps(\SimpleXMLElement $driver, $lmuSessionParticipation): void
     {
-        $lmuLapService = app(\App\Services\LmuLapService::class);
-        $lmuCompoundService = app(\App\Services\LmuCompoundService::class);
-
         if (!isset($driver->Lap)) {
-            return; // No laps data for this driver
+            return;
         }
 
+        $lapServices = $this->initializeLapServices();
+
         foreach ($driver->Lap as $lap) {
-            $compoundData = [
-                'front_compound' => (string) $lap['fcompound'],
-                'rear_compound' => (string) $lap['rcompound'],
-            ];
-
-            $existingCompound = $lmuCompoundService->getLmuCompound($compoundData);
-            if (!$existingCompound) {
-                try {
-                    $lmucompound = $lmuCompoundService->createLmuCompound($compoundData);
-                } catch (\Exception $e) {
-                    Log::error("Error creating compound data: " . $e->getMessage(), [
-                        'compoundData' => $compoundData,
-                        'filePath' => $this->filePath
-                    ]);
-                }
-            } else {
-                $lmucompound = $existingCompound;
+            try {
+                $compound = $this->getOrCreateCompound($lap, $lapServices['compound']);
+                $lapRecord = $this->createLapRecord($lap, $lmuSessionParticipation, $compound, $lapServices['lap']);
+                $this->createSectorRecords($lap, $lapRecord, $lapServices['sector']);
+            } catch (\Exception $e) {
+                Log::error("Error processing lap data", [
+                    'lap_number' => (int) $lap['num'],
+                    'error' => $e->getMessage(),
+                    'filePath' => $this->filePath
+                ]);
             }
+        }
+    }
 
-            $lapData = [
-                'lmu_session_participation_id' => $lmuSessionParticipation->id,
-                'lmu_compound_id' => $lmucompound->id,
-                'lap_number' => (int) $lap['num'],
-                'finish_position' => (int) $lap['p'],
-                'lap_time' => (float) $lap,
-                'top_speed' => (float) $lap['topspeed'],
-                'remaining_fuel' => (float) $lap['fuel'],
-                'fuel_used' => (float) $lap['fuelUsed'],
-                'remaining_virtual_energy' => 0.0,
-                'virtual_energy_used' => 0.0,
-                'tire_wear_fl' => (float) $lap['twfl'],
-                'tire_wear_fr' => (float) $lap['twfr'],
-                'tire_wear_rl' => (float) $lap['twrl'],
-                'tire_wear_rr' => (float) $lap['twrr'],
+    protected function initializeLapServices(): array
+    {
+        return [
+            'lap' => app(\App\Services\LmuLapService::class),
+            'compound' => app(\App\Services\LmuCompoundService::class),
+            'sector' => app(\App\Services\LmuLapSectorService::class),
+        ];
+    }
+
+    protected function getOrCreateCompound(\SimpleXMLElement $lap, $compoundService)
+    {
+        $compoundData = [
+            'front_compound' => (string) $lap['fcompound'],
+            'rear_compound' => (string) $lap['rcompound'],
+        ];
+
+        return $compoundService->getLmuCompound($compoundData)
+            ?? $compoundService->createLmuCompound($compoundData);
+    }
+
+    protected function createLapRecord(\SimpleXMLElement $lap, $lmuSessionParticipation, $compound, $lapService)
+    {
+        $lapData = [
+            'lmu_session_participation_id' => $lmuSessionParticipation->id,
+            'lmu_compound_id' => $compound->id,
+            'lap_number' => (int) $lap['num'],
+            'finish_position' => (int) $lap['p'],
+            'lap_time' => (float) $lap,
+            'top_speed' => (float) $lap['topspeed'],
+            'remaining_fuel' => (float) $lap['fuel'],
+            'fuel_used' => (float) $lap['fuelUsed'],
+            'remaining_virtual_energy' => 0.0,
+            'virtual_energy_used' => 0.0,
+            'tire_wear_fl' => (float) $lap['twfl'],
+            'tire_wear_fr' => (float) $lap['twfr'],
+            'tire_wear_rl' => (float) $lap['twrl'],
+            'tire_wear_rr' => (float) $lap['twrr'],
+        ];
+
+        return $lapService->getLmuLap($lapData)
+            ?? $lapService->createLmuLap($lapData);
+    }
+
+    protected function createSectorRecords(\SimpleXMLElement $lap, $lapRecord, $sectorService): void
+    {
+        $sectorTimes = [
+            1 => (float) $lap['s1'],
+            2 => (float) $lap['s2'],
+            3 => (float) $lap['s3'],
+        ];
+
+        foreach ($sectorTimes as $sectorNumber => $sectorTime) {
+            $sectorData = [
+                'lmu_lap_id' => $lapRecord->id,
+                'sector_number' => $sectorNumber,
+                'sector_time' => $sectorTime,
             ];
 
-            $existingLap = $lmuLapService->getLmuLap($lapData);
-            if (!$existingLap) {
-                try {
-                    $lmuLapService->createLmuLap($lapData);
-                } catch (\Exception $e) {
-                    Log::error("Error creating lap data: " . $e->getMessage(), [
-                        'lapData' => $lapData,
-                        'filePath' => $this->filePath
-                    ]);
-                }
+            $existingSector = $sectorService->getLmuLapSector($sectorData);
+            if (!$existingSector) {
+                $sectorService->createLmuLapSector($sectorData);
             }
         }
     }
