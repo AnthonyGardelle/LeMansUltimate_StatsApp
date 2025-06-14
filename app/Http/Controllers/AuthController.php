@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Cache;
 
 class AuthController extends Controller
 {
-    public function register(Request $request, ResultController $resultController)
+    public function register(Request $request)
     {
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
