@@ -1,7 +1,7 @@
 <nav>
     <ul>
         <li><a href="{{ url('/') }}" class="{{ request()->is('/') ? 'active' : '' }}">@lang('message.accueil')</a></li>
-        <li><a href="{{ url('results') }}" class="{{ request()->is('results') ? 'active' : '' }}">@lang('message.result')</a></li>
+        <!-- <li><a href="{{ url('results') }}" class="{{ request()->is('results') ? 'active' : '' }}">@lang('message.result')</a></li> -->
         @guest
             <li><a href="{{ route('show.register') }}"
                     class="{{ request()->is('register') ? 'active' : '' }}">@lang('message.register')</a></li>

@@ -45,12 +45,6 @@ Route::middleware('auth')->group(function () {
         Route::put('/profile/update', 'update')->name('profile.update');
     });
 
-    // Résultats
-    Route::controller(ResultController::class)->group(function () {
-        Route::get('/results', 'showResults')->name('results');
-        Route::get('/results/{result}', 'showResult')->name('result');
-    });
-
     // Upload XML
     Route::post('/upload-xml', [XmlUploadController::class, 'upload'])->name('upload.xml');
 
