@@ -9,6 +9,7 @@ class LmuSession extends Model
     protected $fillable = [
         'lmu_session_type_id',
         'track_id',
+        'lmu_session_group_id',
         'starting_at',
         'duration',
         'mech_fail_rate',

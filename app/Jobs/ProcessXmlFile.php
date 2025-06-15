@@ -144,9 +144,35 @@ class ProcessXmlFile implements ShouldQueue
 
     protected function extractSessionData($xml, string $sessionType, $sessionTypeModel, $track): array
     {
+        $lmuSessionGroupService = app(\App\Services\LmuSessionGroupService::class);
+
+        $lmuSessionGroupData = [
+            'starting_at' => $xml->RaceResults->DateTime,
+            'hashcode' => hash('sha256', implode('|', [
+                $sessionTypeModel->id,
+                $track->id,
+                $xml->RaceResults->DateTime,
+                (int) $xml->RaceResults->{$sessionType}->Minutes,
+                (int) $xml->RaceResults->MechFailRate,
+                (int) $xml->RaceResults->DamageMult,
+                (int) $xml->RaceResults->FuelMult,
+                (int) $xml->RaceResults->TireMult,
+                (int) $xml->RaceResults->ParcFerme,
+                (int) $xml->RaceResults->FixedSetups,
+                (int) $xml->RaceResults->FreeSettings,
+                (int) $xml->RaceResults->FixedUpgrades,
+                (bool) $xml->RaceResults->LimitedTires,
+                (bool) $xml->RaceResults->TireWarmers,
+            ])),
+        ];
+
+        $lmuSessionGroup = $lmuSessionGroupService->getLmuSessionGroup($lmuSessionGroupData)
+            ?? $lmuSessionGroupService->createLmuSessionGroup($lmuSessionGroupData);
+
         return [
             'lmu_session_type_id' => $sessionTypeModel->id,
             'track_id' => $track->id,
+            'lmu_session_group_id' => $lmuSessionGroup->id,
             'starting_at' => Carbon::createFromFormat('Y/m/d H:i:s', (string) $xml->RaceResults->{$sessionType}->TimeString),
             'duration' => (int) $xml->RaceResults->{$sessionType}->Minutes,
             'mech_fail_rate' => (int) $xml->RaceResults->MechFailRate,
