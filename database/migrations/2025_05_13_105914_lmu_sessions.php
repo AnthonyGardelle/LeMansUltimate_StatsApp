@@ -15,7 +15,6 @@ return new class extends Migration {
             $table->timestamps();
             $table->foreignId('lmu_session_type_id')->constrained()->onDelete('cascade');
             $table->foreignId('track_id')->constrained()->onDelete('cascade');
-            $table->foreignId('lmu_session_group_id')->constrained()->onDelete('cascade');
             $table->dateTime('starting_at')->nullable(false);
             $table->integer('duration')->nullable(false);
             $table->integer('mech_fail_rate')->nullable(false);
