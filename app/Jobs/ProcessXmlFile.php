@@ -147,11 +147,10 @@ class ProcessXmlFile implements ShouldQueue
         $lmuSessionGroupService = app(\App\Services\LmuSessionGroupService::class);
 
         $lmuSessionGroupData = [
-            'starting_at' => $xml->RaceResults->DateTime,
+            'starting_at' => Carbon::createFromTimestamp($xml->RaceResults->DateTime),
             'hashcode' => hash('sha256', implode('|', [
                 $sessionTypeModel->id,
                 $track->id,
-                $xml->RaceResults->DateTime,
                 (int) $xml->RaceResults->{$sessionType}->Minutes,
                 (int) $xml->RaceResults->MechFailRate,
                 (int) $xml->RaceResults->DamageMult,
