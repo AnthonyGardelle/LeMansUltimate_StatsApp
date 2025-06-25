@@ -135,10 +135,10 @@ class ProcessXmlFile implements ShouldQueue
         $service = app(\App\Services\LmuSessionService::class);
         $sessionData = $this->extractSessionData($xml, $sessionType, $sessionTypeModel, $track);
 
+        $existingSession = $service->getLmuSession($sessionData);
 
-        if ($service->getLmuSession($sessionData)) {
+        if ($existingSession) {
             Cache::increment('upload_progress_' . $this->infos['user_id']);
-            Log::info("OUI IL EXISTE UNE LMUSESSION", $sessionData);
             return null;
         }
         return $service->createLmuSession($sessionData);
