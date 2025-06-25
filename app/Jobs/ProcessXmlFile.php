@@ -138,9 +138,20 @@ class ProcessXmlFile implements ShouldQueue
         $existingSession = $service->getLmuSession($sessionData);
 
         if ($existingSession) {
+            Log::info("Session already exists", [
+                'sessionType' => $sessionType,
+                'track' => $track->track_venue . ' - ' . $track->track_course,
+                'filePath' => $this->filePath
+            ]);
+            Cache::increment('upload_progress_' . $this->infos['user_id']);
+            return $existingSession;
+        }
+
+        if ($existingSession) {
             Cache::increment('upload_progress_' . $this->infos['user_id']);
             return null;
         }
+
         return $service->createLmuSession($sessionData);
     }
 
