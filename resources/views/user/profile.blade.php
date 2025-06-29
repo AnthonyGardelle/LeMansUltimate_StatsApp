@@ -42,7 +42,7 @@
                 </div>
                 <div id="register-file-upload-container">
                     <label for="file-upload">
-                        Sélectionner une photo de profil    
+                        Sélectionner une photo de profil
                     </label>
                     <input id="file-upload" type="file" name="image">
                     <span id="file-name">Aucun fichier choisi</span>
@@ -69,7 +69,7 @@
         var myDropzone = new Dropzone(".dropzone", {
             url: "{{ route('upload.xml') }}",
             uploadMultiple: true,
-            paramName: "xml_files",
+            paramName: "xml_files[]",
             parallelUploads: 25,
             maxFilesize: 10,
             acceptedFiles: ".xml",
