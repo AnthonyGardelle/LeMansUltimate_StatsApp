@@ -22,36 +22,35 @@ class ProcessXmlFile implements ShouldQueue
 
     public function __construct(string $filePath, array $infos)
     {
-        Log::info('Queue hit contract()');
+        Log::info('Queue job constructed', [
+            'filePath' => $filePath,
+            'userId' => $infos['user_id'] ?? 'unknown'
+        ]);
+
         $this->filePath = $filePath;
         $this->infos = $infos;
         $this->startTime = now();
     }
 
-    public function retryUntil(): Carbon
-    {
-        // Retenter jusqu’à 10 secondes après le dispatch
-        return now()->addSeconds(10);
-    }
-
     public function handle(): void
     {
+        $userId = $this->infos['user_id'] ?? 'unknown';
+
         Log::info('Starting XML processing', [
             'filePath' => $this->filePath,
-            'userId' => $this->infos['user_id'],
+            'userId' => $userId,
         ]);
-        try {
-            $xml = $this->loadXmlOrFail();
 
-            Cache::increment('upload_progress_' . $this->infos['user_id']);
-        } catch (\Exception $e) {
-            throw $e;
-        } catch (Throwable $e) {
-            throw $e;
-        }
+        $xml = $this->loadXmlOrFail();
+
+        // Add your actual XML processing logic here
+        // For now, just incrementing progress
+        Cache::increment("upload_progress_{$userId}");
+
         Log::info('XML processed successfully', [
             'filePath' => $this->filePath,
-            'userId' => $this->infos['user_id'],
+            'userId' => $userId,
+            'processingTime' => now()->diffInSeconds($this->startTime) . 's'
         ]);
     }
 
@@ -60,12 +59,12 @@ class ProcessXmlFile implements ShouldQueue
         $path = storage_path("app/public/{$this->filePath}");
 
         if (!file_exists($path)) {
-            throw new \Exception("Fichier XML introuvable (retry demandé)");
+            throw new \Exception("XML file not found: {$path}");
         }
 
         $content = file_get_contents($path);
         if ($content === false) {
-            throw new \Exception("Échec lecture fichier XML (retry demandé)");
+            throw new \Exception("Failed to read XML file: {$path}");
         }
 
         return $this->parseXmlContent($content);
@@ -78,16 +77,32 @@ class ProcessXmlFile implements ShouldQueue
 
         if ($xml === false) {
             $errors = libxml_get_errors();
+            $errorMessages = array_map(fn($error) => trim($error->message), $errors);
             libxml_clear_errors();
-            Cache::decrement('upload_total_' . $this->infos['user_id']);
-            throw new \Exception("Contenu XML invalide");
+
+            // Clean up progress tracking on XML parsing failure
+            $userId = $this->infos['user_id'] ?? 'unknown';
+            Cache::decrement("upload_total_{$userId}");
+
+            throw new \Exception("Invalid XML content: " . implode(', ', $errorMessages));
         }
 
         return $xml;
     }
 
-    public function failed(Throwable $e)
+    public function failed(Throwable $e): void
     {
-        Log::error('Queue failed: ' . $e?->getMessage() ?? 'Unknown error');
+        $userId = $this->infos['user_id'] ?? 'unknown';
+
+        Log::error('XML processing job failed', [
+            'error' => $e->getMessage(),
+            'filePath' => $this->filePath,
+            'userId' => $userId,
+            'processingTime' => now()->diffInSeconds($this->startTime) . 's',
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        // Clean up progress tracking on failure
+        Cache::decrement("upload_progress_{$userId}");
     }
 }
