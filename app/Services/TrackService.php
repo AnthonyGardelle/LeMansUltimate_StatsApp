@@ -14,58 +14,50 @@ use App\Models\Track;
 class TrackService
 {
     /**
-     * Crée un nouveau circuit dans la base de données.
-     *
-     * Cette méthode vérifie que les champs requis `track_venue`, `track_course`,
-     * `track_event` et `track_length` sont présents avant de créer un nouvel
-     * enregistrement dans la table `tracks`.
-     *
-     * ### Champs obligatoires :
-     * - `track_venue` (string) : Lieu du circuit.
-     * - `track_course` (string) : Nom du circuit.
-     * - `track_event` (string) : Événement associé au circuit.
-     * - `track_length` (float) : Longueur du circuit.
-     *
-     * @param array $data Données nécessaires à la création du circuit.
-     *
-     * @throws \InvalidArgumentException Si l'un des champs requis est manquant.
-     *
-     * @return Track L'instance de `Track` créée.
+     * Champs obligatoires pour la création d'un circuit.
      */
-    public function createTrack(array $data): Track
-    {
-        if (empty($data['track_venue']) || empty($data['track_course']) || empty($data['track_event']) || empty($data['track_length'])) {
-            throw new \InvalidArgumentException('All track fields are required.');
-        }
+    private const REQUIRED_FIELDS = [
+        'track_venue',
+        'track_course',
+        'track_event',
+        'track_length'
+    ];
 
-        return Track::create([
-            'track_venue' => $data['track_venue'],
-            'track_course' => $data['track_course'],
-            'track_event' => $data['track_event'],
-            'track_length' => $data['track_length']
-        ]);
+    /**
+     * Valide que tous les champs obligatoires sont présents dans les données.
+     *
+     * @param array $data Les données à valider.
+     * 
+     * @throws \InvalidArgumentException Si un champ obligatoire est manquant.
+     */
+    private function validateRequiredFields(array $data): void
+    {
+        foreach (self::REQUIRED_FIELDS as $field) {
+            if (empty($data[$field])) {
+                throw new \InvalidArgumentException("Le champ '{$field}' est obligatoire.");
+            }
+        }
     }
 
     /**
-     * Récupère un circuit à partir de ses détails.
+     * Récupère un circuit existant ou en crée un nouveau.
      *
-     * Cette méthode recherche dans la base de données un enregistrement `Track`
-     * correspondant aux détails fournis. Elle renvoie la première correspondance
-     * trouvée ou `null` si aucune correspondance n'existe.
+     * Cette méthode recherche d'abord un circuit avec les données fournies.
+     * Si aucun n'est trouvé, elle en crée un nouveau.
      *
-     * @param string $trackVenue Lieu du circuit.
-     * @param string $trackCourse Nom du circuit.
-     * @param string $trackEvent Événement associé au circuit.
-     * @param float $trackLength Longueur du circuit.
+     * @param array $data Les données du circuit (doit contenir les champs obligatoires).
      *
-     * @return Track|null L'instance de `Track` trouvée ou `null`.
+     * @return Track L'instance de `Track` trouvée ou créée.
+     *
+     * @throws \InvalidArgumentException Si un champ obligatoire est manquant.
      */
-    public function getTrack(string $trackVenue, string $trackCourse, string $trackEvent, float $trackLength): ?Track
+    public function findOrCreateTrack(array $data): Track
     {
-        return Track::where('track_venue', $trackVenue)
-            ->where('track_course', $trackCourse)
-            ->where('track_event', $trackEvent)
-            ->where('track_length', $trackLength)
-            ->first();
+        $this->validateRequiredFields($data);
+
+        return Track::firstOrCreate(
+            array_intersect_key($data, array_flip(self::REQUIRED_FIELDS)),
+            array_intersect_key($data, array_flip(self::REQUIRED_FIELDS))
+        );
     }
 }

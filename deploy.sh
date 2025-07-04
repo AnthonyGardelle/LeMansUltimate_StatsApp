@@ -22,9 +22,7 @@ echo "🗃️ Running migrations..."
 php artisan migrate --force
 
 echo "♻️ Caching config/routes/views..."
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+php artisan optimize:clear
 
 echo "🚦 Restarting Laravel queues (if used)..."
 php artisan queue:restart
